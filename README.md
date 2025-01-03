@@ -1,3 +1,5 @@
+Запуск: из корня проекта docker compose up -d
+
 http://127.0.0.1:80/api/v1/user/registration - POST, регистрация. В теле username + password. Можно ещё и почту
 
 http://127.0.0.1:80/api/v1/user/check/{username} - GET, проверка зарегистрированного пользователя.
