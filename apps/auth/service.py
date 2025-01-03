@@ -1,25 +1,22 @@
-from .exception import ErrorCreateJWT, ErrorExpiredToken, ErrorInvalidToken
-from sqlalchemy.orm import Session
+from .exceptions import ErrorCreateJWT, ErrorInvalidToken, ErrorExpiredToken
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Row, select
+from utils import check_password
 from apps.user import ModelUser
 from .config import jwt_conf
-from sqlalchemy import Row
+from aiohttp import web
 import collections
 import typing
-import utils
-import flask
 import time
 import jwt
 import db
 
 
 @db.connect_psql()
-def get_user_to_db(username: str, password: str, session: Session) -> Row | None:
-    result = (
-        session.query(ModelUser).
-        filter_by(username=username).
-        first()
-    )
-    if result and utils.check_password(password, str(result.password)):
+async def get_user_to_db(username: str, password: str, session: AsyncSession) -> Row | None:
+    stmt = select(ModelUser).filter_by(username=username)
+    result = (await session.execute(stmt)).scalar()
+    if result and check_password(password.encode(), result.password.encode()):  # noqa
         return result
 
 
@@ -79,7 +76,7 @@ class UserRefreshJWT:
             return True
         return False
 
-    def get_user_from_token(self) -> UserCreateJWT.Tokens | ErrorCreateJWT:
+    def get_user_from_token(self) -> dict:
         payload = jwt.decode(self.token, jwt_conf.SECRET_KEY, algorithms=[jwt_conf.ALGORITHM])
         return payload
 
@@ -90,9 +87,9 @@ def create_jwt_token(user_id: str, username: str) -> UserCreateJWT.Tokens:
     return initial.create_jwt()
 
 
-def create_jwt_for_user(username: str, password: str) -> UserCreateJWT.Tokens | ErrorCreateJWT:
+async def create_jwt_for_user(username: str, password: str) -> UserCreateJWT.Tokens | ErrorCreateJWT:
     """Функция для создания JWT токенов для пользователя"""
-    user = get_user_to_db(username=username, password=password)
+    user = await get_user_to_db(username=username, password=password)
     if user:
         return create_jwt_token(user_id=user.id, username=user.username)
     raise ErrorCreateJWT(msg="Токены не были созданы. Получен неверный логин/пароль.")
@@ -118,12 +115,12 @@ def refresh_token(token: str) -> UserCreateJWT.Tokens | jwt.ExpiredSignatureErro
     raise ErrorInvalidToken
 
 
-def response_get_token(tokens: UserCreateJWT.Tokens) -> flask.Response:
-    response = flask.jsonify(
+def response_get_token(tokens: UserCreateJWT.Tokens) -> web.Response:
+    response = web.json_response(
         {
             'access': tokens.access,
             'refresh': tokens.refresh
-        }
+        },
+        status=201
     )
-    response.status_code = 201
     return response

@@ -1,7 +1,7 @@
-from pydantic_settings import BaseSettings
+import pydantic_settings
 
 
-class UserDataParamsConfig(BaseSettings):
+class UserDataParamsConfig(pydantic_settings.BaseSettings):
     min_passw_length: int = 8
     max_passw_length: int = 100
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, constr, conint
+from pydantic import BaseModel, constr, conint, field_validator
 import datetime
 
 
@@ -12,22 +12,20 @@ class RecordSchema(BaseModel, BaseTitle):
     date_created: datetime.datetime
     owner: int
 
+    @field_validator('date_created', mode='after')
+    def format_date(cls, value: datetime) -> str:
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+
 
 class RecordQueryGetSerializer(BaseModel):
     title: constr(min_length=1, max_length=50) = None
     count: conint(gt=0, le=10) = None
 
 
-class RecordQueryCreateSerializer(BaseModel, BaseTitle):
+class RecordBodyCreateSerializer(BaseModel, BaseTitle):
     description: str = None
 
 
-class RecordQueryDeleteUpdateSerializer(BaseModel, BaseTitle):
-    ...
-
-
-class RecordBodyDeleteUpdateSerializer(BaseModel):
+class RecordBodyUpdateSerializer(BaseModel):
     title: constr(min_length=1, max_length=50) = None
     description: str = None
-    date_created: datetime.datetime = None
-    owner: int = None

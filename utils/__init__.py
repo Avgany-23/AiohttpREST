@@ -1,13 +1,15 @@
 from .serializer_var import ReturnSerializer
-from .exception import ValidationError, ForbiddenError, NotFoundTokenJWT
-from .check_password import check_password
+from .exception import ForbiddenError, NotFoundTokenJWT
+from .password import check_password, hash_password
 from .crud import BaseRequest
+from .auth import auth
 
 
 __all__ = (
+    'auth',
     'ReturnSerializer',
-    'ValidationError',
     'check_password',
+    'hash_password',
     'BaseRequest',
     'ForbiddenError',
     'NotFoundTokenJWT',

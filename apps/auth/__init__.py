@@ -1,9 +1,7 @@
-from .main import app as router
-from .service import UserRefreshJWT, UserCreateJWT
-
+from .middleware import middleware
+from .main import router
 
 __all__ = (
     'router',
-    'UserRefreshJWT',
-    'UserCreateJWT'
+    'middleware',
 )

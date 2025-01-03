@@ -1,43 +1,72 @@
+from db import basic, AsyncDatabaseHelper, DatabaseHelper
+from config import async_psql_url
 import sqlalchemy as sql
-from flask import json
-from app import app
+import pytest_asyncio
+from aiohttp import web
+from apps import routers
+import middleware
 import pytest
-import db
+import json
 
 
-engine = db.DatabaseHelper().engine
+pytest_plugins = 'aiohttp.pytest_plugin'
 
 
-@pytest.fixture
-def api_client():
-    return app.test_client()
+"""Обязательный импорт, чтобы metadata заполнилась данными с таблиц"""
+import apps.record.models  # noqa
+import apps.user.models  # noqa
 
 
 @pytest.fixture(scope='function')
-def session():
-    session = db.DatabaseHelper().get_session()
+async def api_client(aiohttp_client):
+    app = web.Application(
+        middlewares=middleware.apps_middleware + [
+            middleware.middleware_pydantic_validation,
+            middleware.middleware_auth,
+            middleware.middleware_json_error_encoder,
+        ]
+    )
+    for rout in routers:
+        app.add_routes(rout)
+    return await aiohttp_client(app)
+
+
+@pytest_asyncio.fixture(scope='function')
+async def session():
+    db = AsyncDatabaseHelper()
+    async with db.session_factory() as session:
+        yield session
+        await session.close()
+
+
+@pytest.fixture(scope='function')
+def sync_session():
+    session = DatabaseHelper().get_session()
     yield session
     session.close()
 
 
-@pytest.fixture(scope='function', autouse=True)
-def clear_db(session):
+@pytest_asyncio.fixture(scope='function', autouse=True)
+async def clear_db(session):
     yield
-    for table in reversed(db.basic.metadata.sorted_tables):
-        session.execute(sql.text(f"TRUNCATE TABLE \"{table}\" RESTART IDENTITY CASCADE;"))
-    session.commit()
+    for table in reversed(basic.metadata.sorted_tables):
+        await session.execute(sql.text(f"TRUNCATE TABLE \"{table}\" RESTART IDENTITY CASCADE;"))
+    await session.commit()
 
 
-from apps.record import ModelRecord  # noqa
-from apps.user import ModelUser  # noqa
+@pytest_asyncio.fixture(scope='session', autouse=True)
+async def setup_db():
+    key_db_test = 'test'
+    assert key_db_test in async_psql_url, 'В тестовом подключении к БД должно быть слово %s' % key_db_test
 
-
-@pytest.fixture(scope="session", autouse=True)
-def create_session():
-    db.basic.metadata.drop_all(engine)
-    db.basic.metadata.create_all(engine)
+    db = AsyncDatabaseHelper()
+    engine = db.engine
+    async with engine.begin() as conn:
+        await conn.run_sync(basic.metadata.drop_all)
+        await conn.run_sync(basic.metadata.create_all)
     yield
-    db.basic.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(basic.metadata.drop_all)
 
 
 @pytest.fixture
@@ -46,29 +75,26 @@ def user_data():
 
 
 @pytest.fixture(scope='function')
-def create_user(api_client, user_data):
-    headers = {"content-type": "application/json"}
+async def create_user(api_client, user_data):
     data = json.dumps({**user_data})
-    api_client.post('api/v1/user/registration', headers=headers, data=data)
+    await api_client.post('api/v1/user/registration', data=data)
     return user_data
 
 
 @pytest.fixture(scope='function')
-def create_tokens(api_client, create_user):
-    headers = {"content-type": "application/json"}
+async def create_tokens(api_client, create_user):
     data = json.dumps({**create_user})
-    response = api_client.post('api/v1/auth/login', headers=headers, data=data)
-    return response.json
+    response = await api_client.post('api/v1/auth/login', data=data)
+    return await response.json()
 
 
 @pytest.fixture(scope='function')
-def create_access(api_client, create_user):
-    headers = {"content-type": "application/json"}
+async def create_access(api_client, create_user):
     data = json.dumps({**create_user})
-    response = api_client.post('api/v1/auth/login', headers=headers, data=data)
-    return response.json.get("access")
+    response = await api_client.post('api/v1/auth/login', data=data)
+    return (await response.json()).get("access")
 
 
 @pytest.fixture(scope='function')
-def header_user(create_access):
+async def header_user(create_access):
     return {"content-type": "application/json", "Authorization": "Bearer " + create_access}

@@ -5,18 +5,18 @@ class Settings(pydantic_settings.BaseSettings):
     class Config:
         env_file = ".env"
 
-    APP_PORT: int
-    APP_HOST: str
-    APP_DEBUG: bool
+    APP_PORT: int = 8000
+    APP_HOST: str = 'localhost'
+    APP_DEBUG: bool = True
 
-    POSTGRES_NAME: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
-    POSTGRES_DB: str
+    POSTGRES_NAME: str = 'postgresql'
+    POSTGRES_USER: str = 'postgres'
+    POSTGRES_PASSWORD: str = '1234'
+    POSTGRES_HOST: str = 'localhost'
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = 'postgres'
 
-    SECRET_KEY: str
+    SECRET_KEY: str = '...'
 
 
 class PsqlConfig(pydantic_settings.BaseSettings):
@@ -49,8 +49,14 @@ psql_url: str = (
     f"{psql_settings.POSTGRES_DB}"
 )
 
+async_psql_url: str = (
+    f"{psql_settings.POSTGRES_NAME}+asyncpg://"
+    f"{psql_settings.POSTGRES_USER}:{psql_settings.POSTGRES_PASSWORD}@"
+    f"{psql_settings.POSTGRES_HOST}:{psql_settings.POSTGRES_PORT}/"
+    f"{psql_settings.POSTGRES_DB}"
+)
+
 app_run = {
     "host": app_conf.APP_HOST,
     "port": app_conf.APP_PORT,
-    "debug": app_conf.APP_DEBUG
 }

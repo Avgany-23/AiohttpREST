@@ -1,12 +1,13 @@
-from utils.auth import auth
-from flask import request
+from .exception import DuplicateRecordForUser, LimitRecordsForUser, NotFoundRecord
+from aiohttp import web
+import typing
 
 
-def before_request_auth():
-    """
-    На все запросы по адресу /record (кроме record GET) идет проверка аутентификации пользователя.
-    Аутентификация проходит, если передано ключ-значение token: <token> и переданный токен является типом access, если
-    токен корректный и если срок жизни токена не истек.
-    """
-    if (request.path == '/api/v1/record' and request.method != 'GET') or request.path == '/api/v1/record/my_records':
-        auth(request)
+@web.middleware
+async def middleware(request: web.Request, handler: typing.Callable) -> typing.Any:
+    try:
+        response = await handler(request)
+    except (DuplicateRecordForUser, LimitRecordsForUser, NotFoundRecord) as e:
+        return web.json_response(data={'record error': e.msg}, status=e.status_code)  # noqa
+    else:
+        return response

@@ -1,26 +1,26 @@
-from flask import json
+import json
 
 
-def test_get_access_with_exist_user(api_client, create_user):
-    headers = {"content-type": "application/json"}
+async def test_get_access_with_exist_user(api_client, create_user):
     data = json.dumps({**create_user})
-    response = api_client.post('api/v1/auth/login', headers=headers, data=data)
-    assert response.status_code == 201
-    assert "access" in response.json and "refresh" in response.json
+    response = await api_client.post('api/v1/auth/login', data=data)
+    data = (await response.json())
+    assert response.status == 201
+    assert "access" in data and "refresh" in data
 
 
-def test_get_access_with_not_exist_user(api_client, user_data):
-    headers = {"content-type": "application/json"}
+async def test_get_access_with_not_exist_user(api_client, user_data):
     data = json.dumps({**user_data})
-    response = api_client.post('api/v1/auth/login', headers=headers, data=data)
-    assert response.status_code == 400
-    assert "access" not in response.json and "refresh" not in response.json
+    response = await api_client.post('api/v1/auth/login', data=data)
+    data = (await response.json())
+    assert response.status == 400
+    assert "access" not in data and "refresh" not in data
 
 
-def test_get_access_with_exist_user_and_incorrect_password(api_client, create_user):
-    headers = {"content-type": "application/json"}
+async def test_get_access_with_exist_user_and_incorrect_password(api_client, create_user):
     create_user['password'] = "1111111Qq!"
     data = json.dumps({**create_user})
-    response = api_client.post('api/v1/auth/login', headers=headers, data=data)
-    assert response.status_code == 400
-    assert "access" not in response.json and "refresh" not in response.json
+    response = await api_client.post('api/v1/auth/login', data=data)
+    data = (await response.json())
+    assert response.status == 400
+    assert "access" not in data and "refresh" not in data

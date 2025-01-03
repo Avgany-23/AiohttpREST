@@ -1,26 +1,50 @@
-from flask import request, Response
-from utils.auth import auth
+from apps import auth_middleware, record_middleware
+from utils.auth import auth, NotFoundTokenJWT
+from utils import ForbiddenError
+from aiohttp import web
+import pydantic
+import typing
+import json
 
 
-def before_request_auth():
-    """
-    На все запросы по адресу, начинающегося с /auth/user/ идет проверка аутентификации пользователя.
-    """
-    if request.path.startswith('api/v1/auth/user/'):
+# Список отдельных middleware с приложений
+apps_middleware = [
+    auth_middleware,
+    record_middleware
+]
+
+
+@web.middleware
+async def middleware_auth(request: web.Request, handler: typing.Callable) -> typing.Any:
+    """Middleware для аутентификации и прав доступа"""
+    try:
         auth(request)
-
-
-def after_request_base(response: Response):
+        response = await handler(request)
+    except NotFoundTokenJWT as e:
+        return web.json_response(data=e.msg, status=e.status_code)
+    except ForbiddenError as e:
+        return web.json_response(data=e.msg, status=e.status_code)
     return response
 
 
-class SessionMiddleware:
-    def __init__(self, app):
-        self.app = app
+@web.middleware
+async def middleware_pydantic_validation(request: web.Request, handler: typing.Callable) -> typing.Any:
+    """Middleware для обработки исключений валидации pydantic"""
+    try:
+        response = await handler(request)
+    except pydantic.ValidationError as e:
+        return web.json_response(data=json.loads(e.json()), status=400)
+    else:
+        return response
 
-    def __call__(self, environ, start_response):
-        # Низкоуровневый middleware
-        # before
-        response = self.app(environ, start_response)
-        # after
+
+@web.middleware
+async def middleware_json_error_encoder(request: web.Request, handler: typing.Callable) -> typing.Any:
+    """Middleware для обработки исключений json кодировки. В частности обратного слэша."""
+    try:
+        response = await handler(request)
+    except json.decoder.JSONDecodeError as e:
+        error_msg = '%s: line %d column %d (char %d)' % (e.msg, e.lineno, e.colno, e.pos)
+        return web.json_response(data={'json encoder error': error_msg}, status=400)
+    else:
         return response

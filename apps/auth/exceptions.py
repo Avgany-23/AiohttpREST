@@ -1,5 +1,4 @@
 from jwt.exceptions import PyJWTError
-from flask import jsonify, Response
 
 
 class ErrorCreateJWT(PyJWTError):
@@ -30,26 +29,3 @@ class ErrorInvalidToken(BaseErrorCustomJWT):
     @staticmethod
     def default_msg() -> str:
         return "Invalid token"
-
-
-def error_handler_create_jwt(error: ErrorCreateJWT) -> Response:
-    response = jsonify(
-        {
-            'status': 'error',
-            'message': error.msg
-        }
-    )
-    response.status_code = error.status_code
-    return response
-
-
-def error_expired_jwt(error: ErrorExpiredToken) -> Response:
-    response = jsonify({"status token": error.msg})
-    response.status_code = error.status_code
-    return response
-
-
-def error_invalid_jwt(error: ErrorInvalidToken) -> Response:
-    response = jsonify({"status token": error.msg})
-    response.status_code = error.status_code
-    return response

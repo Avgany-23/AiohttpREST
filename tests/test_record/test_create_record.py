@@ -1,6 +1,8 @@
 from apps.record.config import record_conf
-from flask import json
+from apps.record import ModelRecord
+from sqlalchemy import select
 import pytest
+import json
 
 
 @pytest.mark.parametrize("data", [
@@ -8,11 +10,11 @@ import pytest
     {"title": "title  1"},
     {"title": "111111111111", "description": "desc 1" * 5},
 ])
-def test_create_records_with_auth_user_and_correct_data(api_client, header_user, data):
-    response = api_client.post('api/v1/record', headers=header_user, data=json.dumps(data))
-    assert response.status_code == 201
-    data.setdefault("description", None)
-    assert response.json == {'created': data}
+async def test_create_records_with_auth_user_and_correct_data(api_client, header_user, data, sync_session):
+    response = await api_client.post('api/v1/record', headers=header_user, data=json.dumps(data))
+    assert response.status == 201
+    assert await response.json() == {'created': 'success'}
+    assert sync_session.execute(select(ModelRecord)).scalar() is not None
 
 
 @pytest.mark.parametrize("data", [
@@ -21,21 +23,20 @@ def test_create_records_with_auth_user_and_correct_data(api_client, header_user,
     {"title2": "title  1", "description": "desc 1" * 5},
     {"title": "title  1" * 2000, "description": "desc 1" * 5},
 ])
-def test_create_records_with_auth_user_and_incorrect_data(api_client, header_user, data):
-    response = api_client.post('api/v1/record', headers=header_user, data=json.dumps(data))
-    assert response.status_code == 400
+async def test_create_records_with_auth_user_and_incorrect_data(api_client, header_user, data):
+    response = await api_client.post('api/v1/record', headers=header_user, data=json.dumps(data))
+    assert response.status == 400
 
 
-def test_create_records_with_non_auth_user(api_client):
-    headers = {"content-type": "application/json"}
+async def test_create_records_with_non_auth_user(api_client):
     data = json.dumps({"title": "title", "description": "desc 1"})
-    response = api_client.post('api/v1/record', headers=headers, data=data)
-    assert response.status_code == 401
-    assert response.json == {'error token': 'Token JWT not found'}
+    response = await api_client.post('api/v1/record', data=data)
+    assert response.status == 401
+    assert await response.json() == {'Not authentication': 'Token JWT not found'}
 
 
-def test_create_records_with_limited(api_client, header_user):
+async def test_create_records_with_limited(api_client, header_user):
     for i in range(record_conf.LIMIT_CREATED_RECORD_FOR_USER + 2):
-        response = api_client.post('api/v1/record', headers=header_user, data=json.dumps({"title": str(i)}))
+        response = await api_client.post('api/v1/record', headers=header_user, data=json.dumps({"title": str(i)}))
         if i + 1 == record_conf.LIMIT_CREATED_RECORD_FOR_USER + 2:
-            assert response.status_code == 403
+            assert response.status == 403
